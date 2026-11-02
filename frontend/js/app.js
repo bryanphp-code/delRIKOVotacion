@@ -108,7 +108,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 const photo = p.photo_url || "https://images.unsplash.com/photo-1509557965875-b88c97052f0e?auto=format&fit=crop&w=600&q=80";
                 col.innerHTML = `
                     <div class="card h-100 shadow-sm border-0 rounded-4 overflow-hidden">
-                        <img src="${photo}" class="card-img-top object-fit-cover" style="height: 220px;" alt="${p.full_name}">
+                        <div class="bg-dark d-flex align-items-center justify-content-center photo-box" style="height: 320px; cursor: zoom-in;" title="Clic para ver la imagen completa">
+                            <img src="${photo}" style="width: 100%; height: 100%; object-fit: contain;" referrerpolicy="no-referrer" alt="">
+                        </div>
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title fw-bold text-dark">${p.full_name}</h5>
                             <p class="card-text text-muted small flex-grow-1">${p.description || "Sin descripción proporcionada."}</p>
@@ -119,6 +121,21 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                 `;
                 participantsContainer.appendChild(col);
+
+                const img = col.querySelector(".photo-box img");
+                img.alt = p.full_name;
+                img.addEventListener("error", () => {
+                    img.onerror = null;
+                    img.removeAttribute("referrerpolicy");
+                    img.src = "https://placehold.co/600x400?text=Sin+imagen";
+                    console.error("No se pudo cargar la imagen:", photo);
+                });
+                col.querySelector(".photo-box").addEventListener("click", () => {
+                    document.getElementById("photoModalImg").src = photo;
+                    document.getElementById("photoModalImg").alt = p.full_name;
+                    document.getElementById("photoModalTitle").textContent = p.full_name;
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById("photoModal")).show();
+                });
             });
 
             // Asignar eventos a los botones de votación
