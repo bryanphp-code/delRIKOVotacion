@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados - Concurso de Disfraces SPA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1"><i class="bi bi-bar-chart-fill text-warning"></i> Resultados en Vivo</span>
+            <a href="index.html" class="btn btn-outline-light btn-sm">Volver al inicio</a>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <div class="text-center mb-5">
+            <h1 class="fw-bold text-dark">Ranking del Concurso 🏆</h1>
+            <p class="text-muted">Conteo de votos en tiempo real</p>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow border-0 rounded-4 p-4">
+                    <div id="results-list" class="list-group list-group-flush">
+                        <!-- Se llena con JS -->
+                        <p class="text-center text-muted">Cargando resultados...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadResults() {
+            try {
+                const res = await fetch("/api/votes/results");
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+                const container = document.getElementById("results-list");
+                
+                container.innerHTML = "";
+                if (data.length === 0) {
+                    container.innerHTML = `<p class="text-center text-muted">Aún no hay votos registrados.</p>`;
+                    return;
+                }
+
+                data.forEach((item, index) => {
+                    const itemEl = document.createElement("div");
+                    itemEl.className = "list-group-item d-flex align-items-center justify-content-between py-3";
+                    itemEl.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <span class="fw-bold fs-4 me-3 text-secondary">#${index + 1}</span>
+                            <div>
+                                <h5 class="mb-0 fw-bold text-dark"></h5>
+                            </div>
+                        </div>
+                        <span class="badge bg-dark rounded-pill fs-6 px-3 py-2">${item.total_votes} votos</span>
+                    `;
+                    itemEl.querySelector("h5").textContent = item.full_name;
+                    container.appendChild(itemEl);
+                });
+            } catch (err) {
+                console.error("Error al cargar resultados:", err);
+            }
+        }
+        loadResults();
+        setInterval(loadResults, 5000); // Actualizar cada 5 segundos
+    </script>
+</body>
+</html>
