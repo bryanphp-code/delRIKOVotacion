@@ -53,8 +53,13 @@ class ContestSetting(Base):
     id = Column(Integer, primary_key=True, index=True)
     contest_name = Column(String(150), default="Concurso de Disfraces SPA", nullable=False)
     is_open = Column(Boolean, default=False, nullable=False)  # Controla si las votaciones están abiertas
+    access_code = Column(String(20), nullable=True)  # Código secreto diario; si es NULL no se exige
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    @property
+    def requires_code(self) -> bool:
+        return bool(self.access_code)
 
 
 class Admin(Base):

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -6,16 +6,19 @@ from backend.database import get_db
 from backend.models.models import Client, Vote
 from backend.schemas.schemas import ClientCreate, ClientResponse
 from backend.utils.security import get_current_admin
+from backend.utils.access import verify_access_code
 
 router = APIRouter(prefix="/api/clients", tags=["Clients"])
 
 
 @router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
-def register_client(client_data: ClientCreate, db: Session = Depends(get_db)):
+def register_client(client_data: ClientCreate, request: Request, db: Session = Depends(get_db)):
     """
     Registra un nuevo cliente para la votación. 
     Si ya existe un cliente con el mismo número de documento, lo devuelve en lugar de duplicarlo.
     """
+    verify_access_code(db, client_data.access_code, request.client.host if request.client else "unknown")
+
     # Si se proporciona un número de documento, verificamos si ya está registrado
     if client_data.document_number:
         existing_client = db.query(Client).filter(Client.document_number == client_data.document_number).first()

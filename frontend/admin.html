@@ -62,6 +62,25 @@
                 </div>
             </div>
 
+            <div class="card border-0 shadow-sm rounded-4 p-3 mb-4">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div>
+                        <div class="text-muted small">Código secreto del día <i class="bi bi-key-fill text-warning"></i></div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="code-display" class="fs-2 fw-bold font-monospace">------</span>
+                            <button id="btn-copy-code" class="btn btn-sm btn-outline-secondary" title="Copiar"><i class="bi bi-clipboard"></i></button>
+                        </div>
+                        <div id="code-warning" class="text-danger small d-none">Sin código: cualquier persona puede votar.</div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <input id="code-input" type="text" class="form-control form-control-sm text-uppercase" style="width: 150px;" maxlength="20" placeholder="Código propio">
+                        <button id="btn-set-code" class="btn btn-sm btn-dark">Guardar</button>
+                        <button id="btn-gen-code" class="btn btn-sm btn-outline-dark"><i class="bi bi-shuffle"></i> Generar</button>
+                        <button id="btn-clear-code" class="btn btn-sm btn-outline-danger">Quitar</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="card border-0 shadow-sm rounded-4 p-3">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0">Quién votó</h5>
@@ -171,9 +190,50 @@
             $("btn-toggle").textContent = contestOpen ? "Cerrar votaciones" : "Abrir votaciones";
         }
 
+        async function loadCode() {
+            const res = await fetch(API + "/admin/access-code", { headers: authHeaders() });
+            if (res.status === 401) { showLogin("Sesión expirada. Inicia sesión de nuevo."); return; }
+            showCode((await res.json()).access_code);
+        }
+
+        function showCode(code) {
+            $("code-display").textContent = code || "------";
+            $("code-warning").classList.toggle("d-none", !!code);
+        }
+
+        async function sendCode(method, path, body) {
+            const res = await fetch(API + "/admin/access-code" + path, {
+                method,
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: body ? JSON.stringify(body) : undefined
+            });
+            if (res.status === 401) { showLogin("Sesión expirada. Inicia sesión de nuevo."); return; }
+            const data = await res.json();
+            if (!res.ok) {
+                alert(Array.isArray(data.detail) ? data.detail.map(d => d.msg).join("\n") : (data.detail || "Error"));
+                return;
+            }
+            showCode(data.access_code);
+            $("code-input").value = "";
+        }
+
+        $("btn-set-code").addEventListener("click", () => {
+            const v = $("code-input").value.trim();
+            if (!v) { alert("Escribe un código o usa Generar."); return; }
+            sendCode("PUT", "", { access_code: v });
+        });
+        $("btn-gen-code").addEventListener("click", () => sendCode("POST", "/generate"));
+        $("btn-clear-code").addEventListener("click", () => {
+            if (confirm("Sin código, cualquier persona podrá votar. ¿Continuar?")) sendCode("PUT", "", { access_code: null });
+        });
+        $("btn-copy-code").addEventListener("click", () => {
+            const c = $("code-display").textContent;
+            if (c !== "------") navigator.clipboard.writeText(c);
+        });
+
         async function loadAll() {
             try {
-                if (await loadVotes()) await loadSettings();
+                if (await loadVotes()) { await loadSettings(); await loadCode(); }
             } catch (err) {
                 console.error(err);
             }

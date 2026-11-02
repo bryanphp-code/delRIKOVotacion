@@ -14,12 +14,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Verificar si ya hay un cliente guardado en la sesión del navegador
     let currentClient = JSON.parse(localStorage.getItem("spa_client")) || null;
+    let requiresCode = false;
+    const codeGroup = document.getElementById("code-group");
+    const codeInput = document.getElementById("access_code");
+
+    // El código vive solo en la pestaña (sessionStorage) porque cambia cada día
+    const getStoredCode = () => sessionStorage.getItem("spa_code") || "";
+
+    function clearSession() {
+        localStorage.removeItem("spa_client");
+        sessionStorage.removeItem("spa_code");
+        currentClient = null;
+    }
 
     // 1. Comprobar si el concurso está abierto o cerrado
     async function checkContestStatus() {
         try {
             const res = await fetch(`${API_URL}/admin/settings`);
             const settings = await res.json();
+            requiresCode = !!settings.requires_code;
+            codeGroup.classList.toggle("d-none", !requiresCode);
+            codeInput.required = requiresCode;
             
             if (settings.is_open) {
                 contestStatusBadge.textContent = "¡Concurso Abierto! 🟢";
@@ -41,6 +56,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 2. Gestionar qué vista mostrar según el estado del cliente
     function evaluateViewState() {
+        if (currentClient && requiresCode && !getStoredCode()) {
+            // Sesión antigua sin código del día: debe volver a identificarse
+            clearSession();
+        }
         if (currentClient) {
             viewRegister.classList.add("d-none");
             viewSuccess.classList.add("d-none");
@@ -60,6 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const fullName = document.getElementById("full_name").value.trim();
         const documentNumber = document.getElementById("document_number").value.trim();
         const email = document.getElementById("email").value.trim();
+        const accessCode = codeInput.value.trim();
 
         try {
             const res = await fetch(`${API_URL}/clients/`, {
@@ -69,10 +89,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     full_name: fullName,
                     document_number: documentNumber,
                     phone: "",
-                    email: email || null
+                    email: email || null,
+                    access_code: accessCode || null
                 })
             });
 
+            if (res.status === 403 || res.status === 429) {
+                const err = await res.json();
+                alert(err.detail || "Código del día incorrecto.");
+                return;
+            }
             if (res.status === 409) {
                 const err = await res.json();
                 alert(err.detail || "Este documento ya votó.");
@@ -83,6 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const client = await res.json();
             currentClient = client;
             localStorage.setItem("spa_client", JSON.stringify(client));
+            if (accessCode) sessionStorage.setItem("spa_code", accessCode);
             evaluateViewState();
         } catch (err) {
             alert("Hubo un error al registrar tus datos. Inténtalo de nuevo.");
@@ -153,8 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Cierra la sesión del cliente y muestra la pantalla de éxito
     function finishSession() {
-        localStorage.removeItem("spa_client");
-        currentClient = null;
+        clearSession();
         formRegister.reset();
         viewRegister.classList.add("d-none");
         viewVoting.classList.add("d-none");
@@ -171,7 +197,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     client_id: currentClient.id,
-                    participant_id: participantId
+                    participant_id: participantId,
+                    access_code: getStoredCode() || null
                 })
             });
 
@@ -179,6 +206,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (!res.ok) {
                 alert(data.detail || "No se pudo registrar el voto.");
+                if (res.status === 403 || res.status === 429) {
+                    // Código vencido o incorrecto: debe volver a ingresarlo
+                    clearSession();
+                    evaluateViewState();
+                    return;
+                }
                 if (res.status === 400 && /ya ha emitido/i.test(data.detail || "")) {
                     finishSession();
                 }
@@ -195,8 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 6. Cerrar sesión del cliente actual
     btnLogout.addEventListener("click", () => {
-        localStorage.removeItem("spa_client");
-        currentClient = null;
+        clearSession();
         formRegister.reset();
         evaluateViewState();
     });

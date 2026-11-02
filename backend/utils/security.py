@@ -52,11 +52,11 @@ LOCK_SECONDS = 300
 _failed_attempts: dict[str, list[float]] = {}
 
 
-def check_login_allowed(ip: str) -> None:
+def check_login_allowed(ip: str, max_attempts: int = MAX_FAILED_ATTEMPTS) -> None:
     now = time.time()
     attempts = [t for t in _failed_attempts.get(ip, []) if now - t < LOCK_SECONDS]
     _failed_attempts[ip] = attempts
-    if len(attempts) >= MAX_FAILED_ATTEMPTS:
+    if len(attempts) >= max_attempts:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Demasiados intentos fallidos. Inténtalo de nuevo en unos minutos.",

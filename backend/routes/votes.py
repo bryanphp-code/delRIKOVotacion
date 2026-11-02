@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 from typing import List
@@ -6,12 +6,13 @@ from typing import List
 from backend.database import get_db
 from backend.models.models import Vote, Client, Participant, ContestSetting
 from backend.schemas.schemas import VoteCreate, VoteResponse
+from backend.utils.access import verify_access_code
 
 router = APIRouter(prefix="/api/votes", tags=["Votes"])
 
 
 @router.post("/", response_model=VoteResponse, status_code=status.HTTP_201_CREATED)
-def cast_vote(vote_data: VoteCreate, db: Session = Depends(get_db)):
+def cast_vote(vote_data: VoteCreate, request: Request, db: Session = Depends(get_db)):
     """
     Registra el voto de un cliente por un participante.
     Verifica que el concurso esté abierto, que el cliente y participante existan,
@@ -25,6 +26,9 @@ def cast_vote(vote_data: VoteCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Las votaciones están cerradas temporalmente."
         )
+
+    # 1b. Verificar el código secreto diario
+    verify_access_code(db, vote_data.access_code, request.client.host if request.client else "unknown")
 
     # 2. Verificar que el cliente exista
     client = db.query(Client).filter(Client.id == vote_data.client_id).first()

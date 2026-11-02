@@ -14,6 +14,7 @@ class ClientBase(BaseModel):
 
 class ClientCreate(ClientBase):
     document_number: str
+    access_code: Optional[str] = None
 
     @field_validator("document_number", mode="before")
     @classmethod
@@ -66,6 +67,7 @@ class ParticipantResponse(ParticipantBase):
 class VoteCreate(BaseModel):
     client_id: int
     participant_id: int
+    access_code: Optional[str] = None
 
 
 class VoteResponse(BaseModel):
@@ -88,10 +90,29 @@ class ContestSettingResponse(BaseModel):
     id: int
     contest_name: str
     is_open: bool
+    requires_code: bool = False
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class AccessCodeUpdate(BaseModel):
+    access_code: Optional[str] = None
+
+    @field_validator("access_code", mode="before")
+    @classmethod
+    def validate_access_code(cls, v):
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        v = str(v).strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{4,20}", v):
+            raise ValueError("El código debe tener entre 4 y 20 letras o números, sin espacios.")
+        return v
+
+
+class AccessCodeResponse(BaseModel):
+    access_code: Optional[str] = None
 
 
 # --- ADMINISTRADORES Y AUTH ---

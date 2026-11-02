@@ -4,7 +4,15 @@ from typing import List
 
 from backend.database import get_db
 from backend.models.models import ContestSetting, Admin, Vote, Client, Participant
-from backend.schemas.schemas import ContestSettingUpdate, ContestSettingResponse, AdminLogin, Token
+from backend.schemas.schemas import (
+    ContestSettingUpdate,
+    ContestSettingResponse,
+    AccessCodeUpdate,
+    AccessCodeResponse,
+    AdminLogin,
+    Token,
+)
+from backend.utils.access import generate_access_code
 from backend.utils.security import (
     verify_password,
     create_access_token,
@@ -15,6 +23,16 @@ from backend.utils.security import (
 )
 
 router = APIRouter(prefix="/api/admin", tags=["Admin & Settings"])
+
+
+def _get_or_create_setting(db: Session) -> ContestSetting:
+    setting = db.query(ContestSetting).first()
+    if not setting:
+        setting = ContestSetting(contest_name="Concurso de Disfraces SPA", is_open=False)
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    return setting
 
 
 @router.get("/settings", response_model=ContestSettingResponse)
@@ -49,6 +67,32 @@ def update_contest_settings(
     db.commit()
     db.refresh(setting)
     return setting
+
+
+@router.get("/access-code", response_model=AccessCodeResponse, summary="Ver el código secreto del día (solo admin)")
+def get_access_code(db: Session = Depends(get_db), _admin: str = Depends(get_current_admin)):
+    setting = db.query(ContestSetting).first()
+    return {"access_code": setting.access_code if setting else None}
+
+
+@router.put("/access-code", response_model=AccessCodeResponse, summary="Definir o quitar el código del día (solo admin)")
+def set_access_code(
+    data: AccessCodeUpdate,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_current_admin),
+):
+    setting = _get_or_create_setting(db)
+    setting.access_code = data.access_code
+    db.commit()
+    return {"access_code": setting.access_code}
+
+
+@router.post("/access-code/generate", response_model=AccessCodeResponse, summary="Generar un código aleatorio nuevo (solo admin)")
+def generate_new_access_code(db: Session = Depends(get_db), _admin: str = Depends(get_current_admin)):
+    setting = _get_or_create_setting(db)
+    setting.access_code = generate_access_code()
+    db.commit()
+    return {"access_code": setting.access_code}
 
 
 @router.get("/votes", summary="Listar quién votó y por quién (solo admin)")
