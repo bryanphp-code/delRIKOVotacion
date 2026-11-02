@@ -81,6 +81,22 @@
                         <tbody id="votes-body"></tbody>
                     </table>
                 </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="page-size" class="form-select form-select-sm" style="width: auto;">
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <span class="text-muted small">por página</span>
+                    </div>
+                    <span id="page-info" class="text-muted small"></span>
+                    <div class="btn-group">
+                        <button id="btn-prev" class="btn btn-sm btn-outline-dark">Anterior</button>
+                        <button id="btn-next" class="btn btn-sm btn-outline-dark">Siguiente</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -90,6 +106,7 @@
         const TOKEN_KEY = "admin_token";
         let allVotes = [];
         let contestOpen = false;
+        let currentPage = 1;
 
         const $ = (id) => document.getElementById(id);
 
@@ -168,6 +185,18 @@
                 !q || v.client_name.toLowerCase().includes(q) || (v.document_number || "").includes(q));
             $("total-votes").textContent = allVotes.length;
 
+            const pageSize = parseInt($("page-size").value);
+            const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const start = (currentPage - 1) * pageSize;
+            const pageRows = rows.slice(start, start + pageSize);
+
+            $("page-info").textContent = rows.length === 0
+                ? "0 resultados"
+                : `Mostrando ${start + 1}-${start + pageRows.length} de ${rows.length} (página ${currentPage}/${totalPages})`;
+            $("btn-prev").disabled = currentPage <= 1;
+            $("btn-next").disabled = currentPage >= totalPages;
+
             const body = $("votes-body");
             body.innerHTML = "";
             if (rows.length === 0) {
@@ -180,10 +209,10 @@
                 body.appendChild(tr);
                 return;
             }
-            rows.forEach((v, i) => {
+            pageRows.forEach((v, i) => {
                 const tr = document.createElement("tr");
                 const date = new Date(v.created_at + "Z").toLocaleString("es-PE");
-                [rows.length - i, v.client_name, v.document_number || "-", v.participant_name, date].forEach(text => {
+                [rows.length - (start + i), v.client_name, v.document_number || "-", v.participant_name, date].forEach(text => {
                     const td = document.createElement("td");
                     td.textContent = text;
                     tr.appendChild(td);
@@ -192,7 +221,10 @@
             });
         }
 
-        $("search").addEventListener("input", renderVotes);
+        $("search").addEventListener("input", () => { currentPage = 1; renderVotes(); });
+        $("page-size").addEventListener("change", () => { currentPage = 1; renderVotes(); });
+        $("btn-prev").addEventListener("click", () => { currentPage--; renderVotes(); });
+        $("btn-next").addEventListener("click", () => { currentPage++; renderVotes(); });
         $("btn-refresh").addEventListener("click", loadAll);
 
         $("btn-toggle").addEventListener("click", async () => {
