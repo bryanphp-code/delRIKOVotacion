@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - DEL RIKO SPA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1"><i class="bi bi-shield-lock-fill text-warning"></i> Panel de Administración</span>
+            <div>
+                <a href="results.html" class="btn btn-outline-light btn-sm">Resultados</a>
+                <button id="btn-logout" class="btn btn-outline-warning btn-sm d-none">Cerrar sesión</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+
+        <!-- Login -->
+        <div id="view-login" class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="card shadow border-0 rounded-4 p-4">
+                    <h4 class="fw-bold mb-3">Iniciar sesión</h4>
+                    <form id="form-login">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Usuario</label>
+                            <input type="text" id="username" class="form-control" required autocomplete="username">
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Contraseña</label>
+                            <input type="password" id="password" class="form-control" required autocomplete="current-password">
+                        </div>
+                        <div id="login-error" class="alert alert-danger d-none py-2"></div>
+                        <button class="btn btn-dark w-100 rounded-pill" type="submit">Entrar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel -->
+        <div id="view-panel" class="d-none">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 text-center">
+                        <div class="text-muted small">Total de votos</div>
+                        <div id="total-votes" class="fs-1 fw-bold">0</div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card border-0 shadow-sm rounded-4 p-3 h-100 d-flex flex-row align-items-center justify-content-between">
+                        <div>
+                            <div class="text-muted small">Estado del concurso</div>
+                            <span id="contest-badge" class="badge bg-secondary fs-6">...</span>
+                        </div>
+                        <button id="btn-toggle" class="btn btn-outline-dark rounded-pill">Cambiar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 p-3">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">Quién votó</h5>
+                    <div class="d-flex gap-2">
+                        <input id="search" type="search" class="form-control form-control-sm" placeholder="Buscar nombre o documento">
+                        <button id="btn-refresh" class="btn btn-sm btn-outline-dark"><i class="bi bi-arrow-clockwise"></i></button>
+                        <button id="btn-csv" class="btn btn-sm btn-outline-success"><i class="bi bi-download"></i> CSV</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Votante</th><th>Documento</th><th>Votó por</th><th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="votes-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = "/api";
+        const TOKEN_KEY = "admin_token";
+        let allVotes = [];
+        let contestOpen = false;
+
+        const $ = (id) => document.getElementById(id);
+
+        function authHeaders() {
+            return { "Authorization": "Bearer " + sessionStorage.getItem(TOKEN_KEY) };
+        }
+
+        function showLogin(msg) {
+            sessionStorage.removeItem(TOKEN_KEY);
+            $("view-login").classList.remove("d-none");
+            $("view-panel").classList.add("d-none");
+            $("btn-logout").classList.add("d-none");
+            if (msg) {
+                $("login-error").textContent = msg;
+                $("login-error").classList.remove("d-none");
+            }
+        }
+
+        function showPanel() {
+            $("view-login").classList.add("d-none");
+            $("view-panel").classList.remove("d-none");
+            $("btn-logout").classList.remove("d-none");
+            loadAll();
+        }
+
+        $("form-login").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            $("login-error").classList.add("d-none");
+            try {
+                const res = await fetch(API + "/admin/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: $("username").value.trim(), password: $("password").value })
+                });
+                const data = await res.json();
+                if (!res.ok) { showLogin(data.detail || "No se pudo iniciar sesión."); return; }
+                sessionStorage.setItem(TOKEN_KEY, data.access_token);
+                $("password").value = "";
+                showPanel();
+            } catch (err) {
+                showLogin("Error de conexión.");
+            }
+        });
+
+        $("btn-logout").addEventListener("click", () => showLogin());
+
+        async function loadVotes() {
+            const res = await fetch(API + "/admin/votes", { headers: authHeaders() });
+            if (res.status === 401) { showLogin("Sesión expirada. Inicia sesión de nuevo."); return false; }
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            allVotes = await res.json();
+            renderVotes();
+            return true;
+        }
+
+        async function loadSettings() {
+            const res = await fetch(API + "/admin/settings");
+            const s = await res.json();
+            contestOpen = s.is_open;
+            $("contest-badge").textContent = contestOpen ? "Abierto" : "Cerrado";
+            $("contest-badge").className = "badge fs-6 " + (contestOpen ? "bg-success" : "bg-danger");
+            $("btn-toggle").textContent = contestOpen ? "Cerrar votaciones" : "Abrir votaciones";
+        }
+
+        async function loadAll() {
+            try {
+                if (await loadVotes()) await loadSettings();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function renderVotes() {
+            const q = $("search").value.trim().toLowerCase();
+            const rows = allVotes.filter(v =>
+                !q || v.client_name.toLowerCase().includes(q) || (v.document_number || "").includes(q));
+            $("total-votes").textContent = allVotes.length;
+
+            const body = $("votes-body");
+            body.innerHTML = "";
+            if (rows.length === 0) {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.colSpan = 5;
+                td.className = "text-center text-muted";
+                td.textContent = "Sin votos para mostrar.";
+                tr.appendChild(td);
+                body.appendChild(tr);
+                return;
+            }
+            rows.forEach((v, i) => {
+                const tr = document.createElement("tr");
+                const date = new Date(v.created_at + "Z").toLocaleString("es-PE");
+                [rows.length - i, v.client_name, v.document_number || "-", v.participant_name, date].forEach(text => {
+                    const td = document.createElement("td");
+                    td.textContent = text;
+                    tr.appendChild(td);
+                });
+                body.appendChild(tr);
+            });
+        }
+
+        $("search").addEventListener("input", renderVotes);
+        $("btn-refresh").addEventListener("click", loadAll);
+
+        $("btn-toggle").addEventListener("click", async () => {
+            const action = contestOpen ? "cerrar" : "abrir";
+            if (!confirm("¿Seguro que deseas " + action + " las votaciones?")) return;
+            const res = await fetch(API + "/admin/settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({ is_open: !contestOpen })
+            });
+            if (res.status === 401) { showLogin("Sesión expirada. Inicia sesión de nuevo."); return; }
+            await loadSettings();
+        });
+
+        // Evita que Excel interprete celdas como fórmulas
+        function csvCell(value) {
+            let s = String(value ?? "");
+            if (/^[=+\-@]/.test(s)) s = "'" + s;
+            return '"' + s.replace(/"/g, '""') + '"';
+        }
+
+        $("btn-csv").addEventListener("click", () => {
+            const header = ["Votante", "Documento", "Email", "Voto por", "Fecha"];
+            const lines = [header.map(csvCell).join(",")];
+            allVotes.forEach(v => lines.push(
+                [v.client_name, v.document_number, v.email, v.participant_name, v.created_at].map(csvCell).join(",")));
+            const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "votos.csv";
+            a.click();
+            URL.revokeObjectURL(a.href);
+        });
+
+        if (sessionStorage.getItem(TOKEN_KEY)) showPanel();
+    </script>
+</body>
+</html>
