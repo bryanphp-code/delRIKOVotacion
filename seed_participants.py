@@ -30,8 +30,8 @@ if existing_count == 0:
 
     db.add_all(participants_data)
     db.commit()
-    print("✅ ¡3 participantes de prueba insertados exitosamente en la base de datos! 🎃✨")
+    print("¡3 participantes de prueba insertados exitosamente en la base de datos!")
 else:
-    print(f"ℹ️ La tabla de participantes ya cuenta con {existing_count} registros. No se insertaron duplicados.")
+    print(f"La tabla de participantes ya cuenta con {existing_count} registros. No se insertaron duplicados.")
 
 db.close()

@@ -11,9 +11,9 @@ admin_username = input("Usuario admin [admin_spa]: ").strip() or "admin_spa"
 admin_plain_password = getpass.getpass("Contraseña: ")
 
 if len(admin_plain_password) < MIN_PASSWORD_LENGTH:
-    sys.exit(f"❌ La contraseña debe tener al menos {MIN_PASSWORD_LENGTH} caracteres.")
+    sys.exit(f"La contraseña debe tener al menos {MIN_PASSWORD_LENGTH} caracteres.")
 if admin_plain_password != getpass.getpass("Repite la contraseña: "):
-    sys.exit("❌ Las contraseñas no coinciden.")
+    sys.exit("Las contraseñas no coinciden.")
 
 db = SessionLocal()
 
